@@ -709,6 +709,76 @@ var _ = Describe("MPIJob controller", func() {
 		})
 	})
 
+	Context("Test launcher's Intel MPI handling", func() {
+		It("Should create a launcher job with Intel MPI env variables", func() {
+			By("By creating MPIJobs with and without preset env variables")
+
+			testCases := map[string]struct {
+				envVariable string
+				expected    bool
+			}{
+				"withoutIMPIValues": {
+					envVariable: "X_MPI_HYDRA_BOOTSTRAP",
+					expected:    true,
+				},
+				"withIMPIValue": {
+					envVariable: "I_MPI_HYDRA_BOOTSTRAP",
+					expected:    false,
+				},
+				"withIMPIExecValue": {
+					envVariable: "I_MPI_HYDRA_BOOTSTRAP_EXEC",
+					expected:    false,
+				},
+			}
+
+			hasValidIMPIEnvVars := func(envs []corev1.EnvVar) bool {
+				bootstrap := false
+				exec := false
+
+				for _, env := range envs {
+					if env.Name == "I_MPI_HYDRA_BOOTSTRAP" {
+						bootstrap = true
+					}
+					if env.Name == "I_MPI_HYDRA_BOOTSTRAP_EXEC" {
+						exec = true
+					}
+				}
+
+				return bootstrap && exec
+			}
+
+			for testName, testCase := range testCases {
+				ctx := context.Background()
+				startTime := metav1.Now()
+				completionTime := metav1.Now()
+
+				jobName := "test-launcher-creation-" + strings.ToLower(testName)
+
+				var replicas int32 = 1
+				mpiJob := newMPIJob(jobName, &replicas, 1, gpuResourceName, &startTime, &completionTime)
+				Expect(testK8sClient.Create(ctx, mpiJob)).Should(Succeed())
+
+				Expect(len(mpiJob.Spec.MPIReplicaSpecs[kubeflowv1.MPIJobReplicaTypeLauncher].Template.Spec.Containers) == 1).To(BeTrue())
+
+				cont := &mpiJob.Spec.MPIReplicaSpecs[kubeflowv1.MPIJobReplicaTypeLauncher].Template.Spec.Containers[0]
+
+				cont.Env = append(cont.Env,
+					corev1.EnvVar{
+						Name:  testCase.envVariable,
+						Value: "foobar", // value is not tested
+					},
+				)
+
+				launcher := reconciler.newLauncher(mpiJob, "kubectl-delivery", false)
+
+				Expect(len(launcher.Spec.Containers) == 1).To(BeTrue())
+
+				found := hasValidIMPIEnvVars(launcher.Spec.Containers[0].Env)
+
+				Expect(found == testCase.expected).To(BeTrue())
+			}
+		})
+	})
 })
 
 func ReplicaStatusMatch(replicaStatuses map[common.ReplicaType]*common.ReplicaStatus,

@@ -1152,6 +1152,20 @@ func (jc *MPIJobReconciler) newLauncher(mpiJob *kubeflowv1.MPIJob, kubectlDelive
 			})
 	}
 
+	// Add default Intel MPI bootstrap variables if none is provided by the user
+	if !hasIntelMPIBootstrap(container.Env) {
+		container.Env = append(container.Env,
+			corev1.EnvVar{
+				Name:  "I_MPI_HYDRA_BOOTSTRAP_EXEC",
+				Value: fmt.Sprintf("%s/%s", configMountPath, kubexecScriptName),
+			},
+			corev1.EnvVar{
+				Name:  "I_MPI_HYDRA_BOOTSTRAP",
+				Value: iMpiDefaultBootstrap,
+			},
+		)
+	}
+
 	container.VolumeMounts = append(container.VolumeMounts,
 		corev1.VolumeMount{
 			Name:      kubectlVolumeName,

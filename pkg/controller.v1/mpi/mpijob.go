@@ -45,6 +45,7 @@ const (
 	initContainerCpu        = "100m"
 	initContainerEphStorage = "5Gi"
 	initContainerMem        = "512Mi"
+	iMpiDefaultBootstrap    = "rsh"
 )
 
 const (
@@ -215,6 +216,18 @@ func isGPULauncher(mpiJob *kubeflowv1.MPIJob) bool {
 			}
 		}
 	}
+	return false
+}
+
+// hasIntelMPIBootstrap checks if the bootstrap value is set
+// in the env variables
+func hasIntelMPIBootstrap(envs []corev1.EnvVar) bool {
+	for _, env := range envs {
+		if strings.HasPrefix(env.Name, "I_MPI_HYDRA_BOOTSTRAP") {
+			return true
+		}
+	}
+
 	return false
 }
 
